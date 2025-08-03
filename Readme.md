@@ -1,4 +1,4 @@
-# 🚀 Asset Preloader with ETA, Progress, and Priority Queues
+# 🚀 Asset Preloader
 
 A lightweight JavaScript asset preloader that handles images, scripts, JSON, and text files — complete with retry logic, dependencies, estimated time remaining (ETA), concurrent loading per priority level, and a progress/reporting UI.
 
@@ -39,7 +39,7 @@ Since the project uses `fetch()`, you need to run it on a local web server. Open
 ### Steps:
 
 1. **Download or clone the project files** to your computer.
-   git clone https://github.com/suystha7/Assets-preloader.git
+   git clone https://github.com/suystha7/assets-preloader.git
    cd asset-preloader
 
 2. **Using VS Code Live Server**

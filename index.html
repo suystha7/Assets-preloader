@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Asset Preloader Demo</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="row">
+      <div class="progress">
+        <h1>Asset Preloader Demo</h1>
+        <button id="startBtn">Start Preloading</button>
+
+        <div class="progress-container" aria-label="Loading progress">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div id="progressText" aria-live="polite">Progress: 0%</div>
+
+        <div id="log" aria-live="polite">Ready...</div>
+      </div>
+
+      <div id="report" aria-live="polite">
+        <h2>Preload Report</h2>
+        <p><strong>Status:</strong> <span id="report-status"></span></p>
+        <p>
+          <strong>Success (<span id="report-success-count">0</span>):</strong>
+        </p>
+        <ul id="report-success-list"></ul>
+        <p>
+          <strong>Failed (<span id="report-failed-count">0</span>):</strong>
+        </p>
+        <ul id="report-failed-list"></ul>
+        <p><strong>Duration:</strong> <span id="report-duration"></span> ms</p>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>

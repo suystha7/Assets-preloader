@@ -39,8 +39,8 @@ Since the project uses `fetch()`, you need to run it on a local web server. Open
 ### Steps:
 
 1. **Download or clone the project files** to your computer.
-   git clone https://github.com/suystha7/assets-preloader.git
-   cd asset-preloader
+  - git clone https://github.com/suystha7/assets-preloader.git
+  - cd asset-preloader
 
 2. **Using VS Code Live Server**
 

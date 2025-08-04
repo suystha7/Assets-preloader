@@ -83,6 +83,7 @@ class AssetPreloader {
         failed: Array.from(this.failedAssets),
         durationMs,
       });
+      this.emit("exit");
     }
   }
 
@@ -122,23 +123,38 @@ class AssetPreloader {
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     let loader;
+
+    const delay = (ms) => new Promise((res) => setTimeout(res, ms));
+
     switch (type) {
       case "json":
-        loader = fetch(url, { signal: controller.signal }).then((res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.json();
-        });
+        loader = fetch(url, { signal: controller.signal })
+          .then((res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+          })
+          .then(async (data) => {
+            await delay(10000);
+            return data;
+          });
         break;
       case "text":
-        loader = fetch(url, { signal: controller.signal }).then((res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.text();
-        });
+        loader = fetch(url, { signal: controller.signal })
+          .then((res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.text();
+          })
+          .then(async (text) => {
+            await delay(1000);
+            return text;
+          });
         break;
       case "image":
         loader = new Promise((resolve, reject) => {
           const img = new Image();
-          img.onload = () => resolve();
+          img.onload = () => {
+            delay(1000).then(resolve);
+          };
           img.onerror = () => reject(new Error("Image failed to load"));
           img.src = url;
         });
@@ -147,7 +163,9 @@ class AssetPreloader {
         loader = new Promise((resolve, reject) => {
           const script = document.createElement("script");
           script.src = url;
-          script.onload = () => resolve();
+          script.onload = () => {
+            delay(1000).then(resolve);
+          };
           script.onerror = () => reject(new Error("Script failed to load"));
           document.body.appendChild(script);
         });
@@ -164,32 +182,50 @@ class AssetPreloader {
   }
 
   _reportProgress(currentId) {
-    const percentage = Math.round(
-      ((this.stats.loaded + this.stats.failed) / this.stats.total) * 100
-    );
-    const avgTime = this.etaSamples.length
-      ? Math.round(
-          this.etaSamples.reduce((a, b) => a + b) / this.etaSamples.length
-        )
-      : 0;
-    const eta = avgTime * this.stats.remaining;
+    const MIN_SAMPLES_FOR_ETA = 1;
+    const { total, loaded, failed, remaining, high, medium, low } = this.stats;
+    const percentage = Math.round(((loaded + failed) / total) * 100);
+
+    let eta = 0;
+    if (this.etaSamples.length >= MIN_SAMPLES_FOR_ETA && remaining) {
+      const avgTime =
+        this.etaSamples.reduce((a, b) => a + b) / this.etaSamples.length;
+
+      const totalMaxConcurrent =
+        this.maxConcurrent.high +
+        this.maxConcurrent.medium +
+        this.maxConcurrent.low;
+
+      const concurrency = Math.max(totalMaxConcurrent, 1);
+
+      eta = (avgTime * remaining) / concurrency;
+    }
 
     this.emit("progress", {
-      total: this.stats.total,
-      loaded: this.stats.loaded,
-      failed: this.stats.failed,
-      remaining: this.stats.remaining,
+      total,
+      loaded,
+      failed,
+      remaining,
       percentage,
       current: currentId,
       etaMs: eta,
-      high: this.stats.high,
-      medium: this.stats.medium,
-      low: this.stats.low,
+      high,
+      medium,
+      low,
     });
+
+    console.log(
+      `Progress: ${percentage}%, ETA: ${Math.round(
+        eta / 1000
+      )}s, Remaining: ${remaining}`
+    );
   }
 
   pause() {
-    this.paused = true;
+    if (!this.paused) {
+      this.paused = true;
+      this.emit("exit");
+    }
   }
 
   resume() {
@@ -202,14 +238,6 @@ class AssetPreloader {
 const startBtn = document.getElementById("startBtn");
 const logElem = document.getElementById("log");
 const progressBar = document.getElementById("progressBar");
-const reportElem = document.getElementById("report");
-const reportStatus = document.getElementById("report-status");
-const reportSuccessCount = document.getElementById("report-success-count");
-const reportFailedCount = document.getElementById("report-failed-count");
-const reportSuccessList = document.getElementById("report-success-list");
-const reportFailedList = document.getElementById("report-failed-list");
-const reportDuration = document.getElementById("report-duration");
-
 
 function log(msg, type = "info") {
   const div = document.createElement("div");
@@ -220,10 +248,14 @@ function log(msg, type = "info") {
   logElem.appendChild(div);
   logElem.scrollTop = logElem.scrollHeight;
 
-  const maxHeight = 300;
+  const maxHeight = 500;
   const scrollHeight = logElem.scrollHeight;
+
   if (scrollHeight > logElem.clientHeight && scrollHeight <= maxHeight) {
     logElem.style.height = `${scrollHeight}px`;
+  } else if (scrollHeight > maxHeight) {
+    logElem.style.height = `${maxHeight}px`;
+    logElem.style.overflowY = "auto";
   }
 }
 
@@ -231,78 +263,63 @@ function clearLog() {
   logElem.textContent = "";
 }
 
-function clearReport() {
-  reportSuccessList.innerHTML = "";
-  reportFailedList.innerHTML = "";
-  reportSuccessCount.textContent = "0";
-  reportFailedCount.textContent = "0";
-  reportDuration.textContent = "";
-  reportStatus.textContent = "";
-  reportElem.style.display = "none";
-}
-
 function resetUI() {
   clearLog();
   progressBar.style.width = "0%";
   progressBar.textContent = "Progress: 0%";
-  clearReport();
 }
 
 function setupPreloader() {
   preloader = new AssetPreloader();
 
   preloader.on("start", () => {
-    clearReport();
     log("Preloading started...");
   });
 
   preloader.on("load", (asset) => log(`Loaded: ${asset.id}`, "success"));
+
   preloader.on("error", (asset, err) =>
     log(`Failed: ${asset.id} (${err.message})`, "fail")
   );
+
   preloader.on("retry", (asset, attempt) =>
     log(`Retrying ${asset.id} (Attempt ${attempt})`, "retry")
   );
-  preloader.on("progress", (stats) => {
-    const etaSeconds = isFinite(stats.etaMs)
-      ? Math.round(stats.etaMs / 1000)
-      : null;
 
-    let etaFormatted = "--:--";
-    if (etaSeconds !== null) {
-      const mins = Math.floor(etaSeconds / 60);
-      const secs = etaSeconds % 60;
-      etaFormatted = `${mins}:${secs.toString().padStart(2, "0")}`;
-    }
+  preloader.on("progress", (stats) => {
+    const etaSeconds =
+      isFinite(stats.etaMs) && stats.etaMs >= 0
+        ? Math.round(stats.etaMs / 1000)
+        : 0;
+
+    const mins = Math.floor(etaSeconds / 60);
+    const secs = etaSeconds % 60;
+    const etaFormatted = `${mins}:${secs.toString().padStart(2, "0")}`;
 
     progressBar.style.width = `${stats.percentage}%`;
-    progressBar.textContent = `Progress: ${stats.percentage}% (${stats.loaded}/${stats.total})`;
+    progressBar.textContent = `Progress: ${stats.percentage}% (${stats.loaded}/${stats.total}) | ETA: ${etaFormatted} ms`;
   });
 
   preloader.on("complete", (report) => {
-    reportElem.style.display = "block";
-    reportStatus.textContent = "Complete";
-    reportSuccessCount.textContent = report.success.length;
-    reportFailedCount.textContent = report.failed.length;
+    log("Preloading stopped...");
+    const hr = document.createElement("hr");
+    hr.classList.add("report-divider");
+    logElem.appendChild(hr);
 
-    reportSuccessList.innerHTML = "";
-    report.success.forEach((id) => {
-      const li = document.createElement("li");
-      li.textContent = id;
-      reportSuccessList.appendChild(li);
-    });
+    const summary = {
+      success: report.success,
+      failed: report.failed,
+      durationMs: report.durationMs,
+    };
 
-    reportFailedList.innerHTML = "";
-    report.failed.forEach((id) => {
-      const li = document.createElement("li");
-      li.textContent = id;
-      reportFailedList.appendChild(li);
-    });
-
-    reportDuration.textContent = report.durationMs;
+    const jsonPre = document.createElement("pre");
+    jsonPre.textContent = JSON.stringify(summary, null, 2);
+    jsonPre.classList.add("report-json");
+    logElem.appendChild(jsonPre);
   });
 }
 
+// DEMO
 function startPreloading() {
   resetUI();
   setupPreloader();

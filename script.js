@@ -199,12 +199,9 @@ class AssetPreloader {
   }
 }
 
-let preloader;
-
 const startBtn = document.getElementById("startBtn");
 const logElem = document.getElementById("log");
 const progressBar = document.getElementById("progressBar");
-const progressText = document.getElementById("progressText");
 const reportElem = document.getElementById("report");
 const reportStatus = document.getElementById("report-status");
 const reportSuccessCount = document.getElementById("report-success-count");
@@ -213,9 +210,21 @@ const reportSuccessList = document.getElementById("report-success-list");
 const reportFailedList = document.getElementById("report-failed-list");
 const reportDuration = document.getElementById("report-duration");
 
-function log(msg) {
-  logElem.textContent += `\n${msg}`;
+
+function log(msg, type = "info") {
+  const div = document.createElement("div");
+  div.textContent = msg;
+  if (type === "success") div.classList.add("log-success");
+  else if (type === "fail") div.classList.add("log-fail");
+  else if (type === "retry") div.classList.add("log-retry");
+  logElem.appendChild(div);
   logElem.scrollTop = logElem.scrollHeight;
+
+  const maxHeight = 300;
+  const scrollHeight = logElem.scrollHeight;
+  if (scrollHeight > logElem.clientHeight && scrollHeight <= maxHeight) {
+    logElem.style.height = `${scrollHeight}px`;
+  }
 }
 
 function clearLog() {
@@ -235,7 +244,7 @@ function clearReport() {
 function resetUI() {
   clearLog();
   progressBar.style.width = "0%";
-  progressText.textContent = "Progress: 0%";
+  progressBar.textContent = "Progress: 0%";
   clearReport();
 }
 
@@ -243,22 +252,33 @@ function setupPreloader() {
   preloader = new AssetPreloader();
 
   preloader.on("start", () => {
-    log("Preloading started...");
     clearReport();
+    log("Preloading started...");
   });
-  preloader.on("load", (asset) => log(`Loaded: ${asset.id}`));
+
+  preloader.on("load", (asset) => log(`Loaded: ${asset.id}`, "success"));
   preloader.on("error", (asset, err) =>
-    log(`Failed: ${asset.id} (${err.message})`)
+    log(`Failed: ${asset.id} (${err.message})`, "fail")
   );
   preloader.on("retry", (asset, attempt) =>
-    log(`Retrying ${asset.id} (Attempt ${attempt})`)
+    log(`Retrying ${asset.id} (Attempt ${attempt})`, "retry")
   );
   preloader.on("progress", (stats) => {
+    const etaSeconds = isFinite(stats.etaMs)
+      ? Math.round(stats.etaMs / 1000)
+      : null;
+
+    let etaFormatted = "--:--";
+    if (etaSeconds !== null) {
+      const mins = Math.floor(etaSeconds / 60);
+      const secs = etaSeconds % 60;
+      etaFormatted = `${mins}:${secs.toString().padStart(2, "0")}`;
+    }
+
     progressBar.style.width = `${stats.percentage}%`;
-    progressText.textContent = `Progress: ${stats.percentage}% (${
-      stats.loaded
-    }/${stats.total}) | ETA: ${Math.round(stats.etaMs / 1000)}s`;
+    progressBar.textContent = `Progress: ${stats.percentage}% (${stats.loaded}/${stats.total})`;
   });
+
   preloader.on("complete", (report) => {
     reportElem.style.display = "block";
     reportStatus.textContent = "Complete";
@@ -286,6 +306,7 @@ function setupPreloader() {
 function startPreloading() {
   resetUI();
   setupPreloader();
+
   preloader.add({
     id: "config",
     type: "json",
@@ -321,7 +342,7 @@ function startPreloading() {
     priority: "low",
   });
 
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < 20; i++) {
     preloader.add({
       id: `img-${i}`,
       type: "image",

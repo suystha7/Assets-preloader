@@ -198,7 +198,7 @@ class AssetPreloader {
 
       const concurrency = Math.max(totalMaxConcurrent, 1);
 
-      eta = (avgTime * remaining) / concurrency;
+      eta = Math.round((avgTime * remaining) / concurrency);
     }
 
     this.emit("progress", {
@@ -208,7 +208,6 @@ class AssetPreloader {
       remaining,
       percentage,
       current: currentId,
-      etaMs: eta,
       high,
       medium,
       low,
@@ -283,7 +282,7 @@ function setupPreloader() {
   );
 
   preloader.on("progress", (stats) => {
-    console.log(stats)
+    console.log(stats);
     const etaSeconds =
       isFinite(stats.etaMs) && stats.etaMs >= 0
         ? Math.round(stats.etaMs / 1000)

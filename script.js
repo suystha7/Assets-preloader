@@ -213,12 +213,6 @@ class AssetPreloader {
       medium,
       low,
     });
-
-    console.log(
-      `Progress: ${percentage}%, ETA: ${Math.round(
-        eta / 1000
-      )}s, Remaining: ${remaining}`
-    );
   }
 
   pause() {
@@ -235,6 +229,7 @@ class AssetPreloader {
   }
 }
 
+// UI
 const startBtn = document.getElementById("startBtn");
 const logElem = document.getElementById("log");
 const progressBar = document.getElementById("progressBar");
@@ -269,6 +264,7 @@ function resetUI() {
   progressBar.textContent = "Progress: 0%";
 }
 
+// event model to notify about lifecycle
 function setupPreloader() {
   preloader = new AssetPreloader();
 
@@ -287,6 +283,7 @@ function setupPreloader() {
   );
 
   preloader.on("progress", (stats) => {
+    console.log(stats)
     const etaSeconds =
       isFinite(stats.etaMs) && stats.etaMs >= 0
         ? Math.round(stats.etaMs / 1000)
@@ -319,7 +316,7 @@ function setupPreloader() {
   });
 }
 
-// DEMO
+// Demo
 function startPreloading() {
   resetUI();
   setupPreloader();
